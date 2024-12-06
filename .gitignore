@@ -1,0 +1,8 @@
+# Ignore Visual Studio IntelliSense files
+*.ipch
+*.pdb
+.vs/
+*.obj
+*.user
+*.suo
+*.log
