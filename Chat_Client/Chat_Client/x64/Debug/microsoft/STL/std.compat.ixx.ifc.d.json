@@ -7,7 +7,7 @@
         "ImportedModules": [
             {
                 "Name": "std",
-                "BMI": "D:\\C++\\Chat_Client\\Chat_Client\\x64\\Debug\\microsoft\\STL\\std.ixx.ifc"
+                "BMI": "D:\\C++\\Chat_App\\Chat_Client\\Chat_Client\\x64\\Debug\\microsoft\\STL\\std.ixx.ifc"
             }
         ],
         "ImportedHeaderUnits": []

@@ -32,9 +32,10 @@ void sendMessage(SOCKET s) {
         }
         else if (message == "/clear") {
             system("cls");
-            cout << "Please use these commands for following actions:\n1./leave: Leave the server\n2./private: Start private conversation\n3./list: List all users\n4./block: Block a user\n5./unblock: Unblock a user\n6./clear: Clear old messages\n7./create_group: Creates a private group\n8./join_group: Joins already created group\n9./group <group Name> <Message>: Send a message to group\n10./leave_group: Leaves a joined group\n\n";
+            cout << "Please use these commands for following actions:\n1./leave: Leave the server\n2./private <username> <message>: Start private conversation\n3./list: List all users\n4./block: Block a user\n5./unblock: Unblock a user\n6./clear: Clear old messages\n7./create_group: Creates a private group\n8./join_group: Joins already created group\n9./group <group Name> <Message>: Send a message to group\n10./leave_group: Leaves a joined group\n\n";
         }
         else if (message.rfind("/sendfile ", 0) == 0) { // Command starts with "/sendfile "
+            send(s, message.c_str(), static_cast<int>(message.length()), 0);
             std::string filePath = message.substr(10); // Extract file path
             if (!sendFile(s, filePath)) {
                 std::cerr << "File transfer failed!" << std::endl;

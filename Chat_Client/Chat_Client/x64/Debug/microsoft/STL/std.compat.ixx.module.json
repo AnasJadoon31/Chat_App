@@ -5,9 +5,9 @@
         {
             "primary-output": "Chat_Client\\x64\\Debug\\microsoft/STL\\std.compat.ixx.obj",
             "outputs": [
-                "D:\\C++\\Chat_Client\\Chat_Client\\x64\\Debug\\vc143.pdb",
+                "D:\\C++\\Chat_App\\Chat_Client\\Chat_Client\\x64\\Debug\\vc143.pdb",
                 "Chat_Client\\x64\\Debug\\microsoft/STL\\",
-                "D:\\C++\\Chat_Client\\Chat_Client\\x64\\Debug\\microsoft\\STL\\std.compat.ixx.ifc"
+                "D:\\C++\\Chat_App\\Chat_Client\\Chat_Client\\x64\\Debug\\microsoft\\STL\\std.compat.ixx.ifc"
             ],
             "provides": [
                 {
