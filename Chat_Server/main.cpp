@@ -226,7 +226,7 @@ void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
                 userMap[userName] = clientSocket; // Add username and socket to map
                 string clearScreenSignal = "CLEAR_SCREEN";
                 send(clientSocket, clearScreenSignal.c_str(), static_cast<int>(clearScreenSignal.length()), 0);
-                string successMessage = "Username accepted!\n\nPlease use these commands for following actions:\n1./leave: Leave the server\n2./private <username> <message>: Start private conversation\n3./list: List all users\n4./block: Block a user\n5./unblock: Unblock a user\n6./clear: Clear old messages\n7./create_group: Creates a private group\n8./join_group: Joins already created group\n9./group <group Name> <Message>: Send a message to group\n10./leave_group: Leaves a joined group\n\n";
+                string successMessage = "Username accepted!\n\nPlease use these commands for following actions:\n1./leave: Leave the server\n2./private <username> <message>: Start private conversation\n3./list: List all users\n4./block <username>: Block a user\n5./unblock <username>: Unblock a user\n6./clear: Clear old messages\n7./create_group <group Name>: Creates a private group\n8./join_group <group Name>: Joins already created group\n9./group <group Name> <Message>: Send a message to group\n10./leave_group <group Name>: Leaves a joined group\n11./sendfile <file Name>: Sends a file to everyone\n\n";
                 send(clientSocket, successMessage.c_str(), static_cast<int>(successMessage.length()), 0);
                 break; // Exit the loop once a unique username is chosen
             }
@@ -638,7 +638,7 @@ int main() {
     serverThread.detach();
 
     waitFor(3);
-    cout << "\n\nPlease use these commands for following actions:\n\n1./stop: Stop server\n2./list: List all users\n3./kick: Kick users from server\n4./announce: Make an announcement\n5./clear: Clear logs\n\n";
+    cout << "\n\nPlease use these commands for following actions:\n\n1./stop: Stop server\n2./list: List all users\n3./kick: Kick users from server\n4./announce: Make an announcement\n5./clear: Clear logs\n6./sendfile <file Name>: Send a file to all clients\n\n";
     string command;
     while (true) {
         cin >> command;
