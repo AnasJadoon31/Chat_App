@@ -93,9 +93,10 @@ bool receiveFile(SOCKET serverSocket) {
 
     if (bytesReceivedTotal == fileSize) {
         cout << "File saved successfully as: " << fileName << endl;
+        return true;
     }
     else {
         std::cerr << "File transfer incomplete. Expected " << fileSize << " bytes but received " << bytesReceivedTotal << " bytes." << endl;
+        return false;
     }
 }
-

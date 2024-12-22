@@ -165,9 +165,9 @@ void handleFileTransfer(SOCKET senderSocket) {
         send(senderSocket, "File transfer complete.", 23, 0);
 
         // Step 5: Broadcast the file to other clients
-        for (SOCKET clientSocket : clientsSnapshot) {
-            if (clientSocket != senderSocket) { // Skip the sender
-                send(clientSocket, metadata.c_str(), static_cast<int>(metadata.size()), 0);
+        for (SOCKET client : clientsSnapshot) {
+            if (client != senderSocket) { // Skip the sender
+                send(client, metadata.c_str(), static_cast<int>(metadata.size()), 0);
 
                 // Re-open the file to read its content
                 ifstream inFile(fileName, ios::binary);
@@ -179,13 +179,11 @@ void handleFileTransfer(SOCKET senderSocket) {
                 while (inFile) {
                     inFile.read(buffer, sizeof(buffer));
                     int bytesToSend = static_cast<int>(inFile.gcount());
-
-                    if (send(clientSocket, buffer, bytesToSend, 0) == SOCKET_ERROR) {
+                    if (send(client, buffer, bytesToSend, 0) == SOCKET_ERROR) {
                         cerr << "Error sending file data to client!" << endl;
                         break;
                     }
                 }
-
                 inFile.close();
             }
         }
@@ -195,60 +193,6 @@ void handleFileTransfer(SOCKET senderSocket) {
         send(senderSocket, "ERROR: File transfer incomplete.", 31, 0);
     }
 }
-
-void handleSendFileToUser(SOCKET senderSocket, const std::string& command) {
-    // Step 1: Extract the target username and file name from the command
-    size_t firstSpace = command.find(' ');
-    size_t secondSpace = command.find(' ', firstSpace + 1);
-
-    if (firstSpace == std::string::npos || secondSpace == std::string::npos) {
-        std::string errorMessage = "ERROR: Invalid command format. Usage: /sendfile username filename";
-        send(senderSocket, errorMessage.c_str(), static_cast<int>(errorMessage.size()), 0);
-        return;
-    }
-
-    std::string targetUsername = command.substr(firstSpace + 1, secondSpace - firstSpace - 1);
-    std::string fileName = command.substr(secondSpace + 1);
-
-    // Step 2: Look up the target username in the userSockets map
-    auto it = userMap.find(targetUsername);
-    if (it == userMap.end()) {
-        send(senderSocket, "ERROR: User not found", 22, 0);
-        return;
-    }
-
-    SOCKET targetSocket = it->second;
-
-    // Step 3: Send the file to the target user
-    char buffer[4096];
-
-    // Open the file for reading
-    std::ifstream inFile(fileName, std::ios::binary);
-    if (!inFile) {
-        send(senderSocket, "ERROR: File not found", 22, 0);
-        return;
-    }
-
-    // Step 4: Send the metadata (file name and size) to the target user
-    uint64_t fileSize = fs::file_size(fileName);
-    std::string metadata = fileName + ":" + std::to_string(fileSize);
-    send(targetSocket, metadata.c_str(), static_cast<int>(metadata.size()), 0);
-
-    // Step 5: Send the file data to the target user in chunks
-    while (inFile) {
-        inFile.read(buffer, sizeof(buffer));
-        int bytesToSend = static_cast<int>(inFile.gcount());
-
-        if (send(targetSocket, buffer, bytesToSend, 0) == SOCKET_ERROR) {
-            cerr << "Error sending file data to target user!" << endl;
-            break;
-        }
-    }
-
-    inFile.close();
-    cout << "File sent to " << targetUsername << " successfully!" << endl;
-}
-
 
 // Interact with client
 void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
