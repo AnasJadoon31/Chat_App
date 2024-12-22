@@ -12,9 +12,10 @@
 #include <limits>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 using namespace std;
-
+namespace fs = std::filesystem;
 #pragma comment(lib, "ws2_32.lib")
 
 vector<string> userNames;
@@ -109,12 +110,151 @@ void announceToAll(const string& message) {
         send(client, message.c_str(), static_cast<int>(message.size()), 0);
     }
 }
+void handleFileTransfer(SOCKET senderSocket) {
+    char buffer[4096];
+
+    // Step 1: Receive metadata
+    int bytesReceived = recv(senderSocket, buffer, sizeof(buffer) - 1, 0);
+    if (bytesReceived <= 0) {
+        cerr << "Error receiving metadata or connection closed!" << endl;
+        return;
+    }
+
+    buffer[bytesReceived] = '\0'; // Null-terminate the received metadata
+    string metadata(buffer);
+
+    // Step 2: Parse metadata to get file name and size
+    size_t delimPos = metadata.find(':');
+    if (delimPos == string::npos) {
+        cerr << "Invalid metadata received!" << endl;
+        return;
+    }
+
+    string fileName = metadata.substr(0, delimPos);
+    uint64_t fileSize = stoull(metadata.substr(delimPos + 1));
+
+    cout << "Receiving file: " << fileName << " (" << fileSize << " bytes)" << endl;
+
+    // Step 3: Open a file to save the data on the server
+    ofstream outFile(fileName, ios::binary);
+    if (!outFile) {
+        cerr << "Error: Unable to create file!" << endl;
+        send(senderSocket, "ERROR: Unable to create file.", 29, 0);
+        return;
+    }
+
+    // Step 4: Receive the file data
+    uint64_t bytesReceivedTotal = 0;
+    while (bytesReceivedTotal < fileSize) {
+        ZeroMemory(buffer, sizeof(buffer));
+        int chunkReceived = recv(senderSocket, buffer, sizeof(buffer), 0);
+
+        if (chunkReceived <= 0) {
+            cerr << "Error receiving file data!" << endl;
+            break;
+        }
+
+        outFile.write(buffer, chunkReceived);
+        bytesReceivedTotal += chunkReceived;
+    }
+
+    outFile.close();
+
+    if (bytesReceivedTotal == fileSize) {
+        cout << "File transfer complete: " << fileName << endl;
+        send(senderSocket, "File transfer complete.", 23, 0);
+
+        // Step 5: Broadcast the file to other clients
+        for (SOCKET clientSocket : clientsSnapshot) {
+            if (clientSocket != senderSocket) { // Skip the sender
+                send(clientSocket, metadata.c_str(), static_cast<int>(metadata.size()), 0);
+
+                // Re-open the file to read its content
+                ifstream inFile(fileName, ios::binary);
+                if (!inFile) {
+                    cerr << "Error opening file for broadcast!" << endl;
+                    continue;
+                }
+
+                while (inFile) {
+                    inFile.read(buffer, sizeof(buffer));
+                    int bytesToSend = static_cast<int>(inFile.gcount());
+
+                    if (send(clientSocket, buffer, bytesToSend, 0) == SOCKET_ERROR) {
+                        cerr << "Error sending file data to client!" << endl;
+                        break;
+                    }
+                }
+
+                inFile.close();
+            }
+        }
+    }
+    else {
+        cerr << "File transfer incomplete. Expected " << fileSize << " bytes but received " << bytesReceivedTotal << " bytes." << endl;
+        send(senderSocket, "ERROR: File transfer incomplete.", 31, 0);
+    }
+}
+
+void handleSendFileToUser(SOCKET senderSocket, const std::string& command) {
+    // Step 1: Extract the target username and file name from the command
+    size_t firstSpace = command.find(' ');
+    size_t secondSpace = command.find(' ', firstSpace + 1);
+
+    if (firstSpace == std::string::npos || secondSpace == std::string::npos) {
+        std::string errorMessage = "ERROR: Invalid command format. Usage: /sendfile username filename";
+        send(senderSocket, errorMessage.c_str(), static_cast<int>(errorMessage.size()), 0);
+        return;
+    }
+
+    std::string targetUsername = command.substr(firstSpace + 1, secondSpace - firstSpace - 1);
+    std::string fileName = command.substr(secondSpace + 1);
+
+    // Step 2: Look up the target username in the userSockets map
+    auto it = userMap.find(targetUsername);
+    if (it == userMap.end()) {
+        send(senderSocket, "ERROR: User not found", 22, 0);
+        return;
+    }
+
+    SOCKET targetSocket = it->second;
+
+    // Step 3: Send the file to the target user
+    char buffer[4096];
+
+    // Open the file for reading
+    std::ifstream inFile(fileName, std::ios::binary);
+    if (!inFile) {
+        send(senderSocket, "ERROR: File not found", 22, 0);
+        return;
+    }
+
+    // Step 4: Send the metadata (file name and size) to the target user
+    uint64_t fileSize = fs::file_size(fileName);
+    std::string metadata = fileName + ":" + std::to_string(fileSize);
+    send(targetSocket, metadata.c_str(), static_cast<int>(metadata.size()), 0);
+
+    // Step 5: Send the file data to the target user in chunks
+    while (inFile) {
+        inFile.read(buffer, sizeof(buffer));
+        int bytesToSend = static_cast<int>(inFile.gcount());
+
+        if (send(targetSocket, buffer, bytesToSend, 0) == SOCKET_ERROR) {
+            cerr << "Error sending file data to target user!" << endl;
+            break;
+        }
+    }
+
+    inFile.close();
+    cout << "File sent to " << targetUsername << " successfully!" << endl;
+}
+
 
 // Interact with client
 void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
     char buffer[4096];
     string userName;
-
+    bool isFile = false;
     // Loop until a unique username is provided
     while (true) {
         int user = recv(clientSocket, buffer, sizeof(buffer), 0);
@@ -369,41 +509,8 @@ void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
             }
             continue;
         }
-        if (message.find("/file_transfer") == 0) {
-            // Extract file metadata (name and size)
-            size_t delimPos = message.find(':');
-            if (delimPos == string::npos) {
-                send(clientSocket, "ERROR: Invalid file transfer command.", 38, 0);
-                continue;
-            }
-            string fileName = message.substr(14, delimPos - 14);
-            size_t fileSize = stoull(message.substr(delimPos + 1));
-
-            cout << "Receiving file: " << fileName << " (" << fileSize << " bytes)" << endl;
-
-            // Open file for writing
-            ofstream outFile(fileName, ios::binary);
-            if (!outFile) {
-                send(clientSocket, "ERROR: Unable to create file.", 29, 0);
-                continue;
-            }
-            // Receive the file data
-            size_t bytesReceivedTotal = 0;
-            while (bytesReceivedTotal < fileSize) {
-                ZeroMemory(buffer, 4096);
-                int chunkReceived = recv(clientSocket, buffer, 4096, 0);
-                if (chunkReceived <= 0) {
-                    cout << "Error receiving file data." << endl;
-                    break;
-                }
-                outFile.write(buffer, chunkReceived);
-                bytesReceivedTotal += chunkReceived;
-            }
-            outFile.close();
-            cout << "File transfer complete: " << fileName << endl;
-
-            // Send confirmation to the client
-            send(clientSocket, "File transfer complete.", 23, 0);
+        if (message.find("/sendfile") == 0) {
+            handleFileTransfer(clientSocket);
         }
         else {
             // Forward the message to other clients

@@ -42,11 +42,9 @@ void sendMessage(SOCKET s) {
             }
             continue;
         }
-        else if (message.rfind("FILE_METADATA", 0) == 0) { // Custom tag for file metadata
-            if (!receiveFile(s)) {
-                std::cerr << "File reception failed!" << std::endl;
-            }
-            continue;
+        else if (message.find(':') != string::npos && isdigit(message.back())) {
+            // If the message contains metadata (e.g., "fileName:fileSize")
+            receiveFile(s);
         }
         else {
             string msg = user + message;
