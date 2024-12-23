@@ -97,6 +97,22 @@ void sendMessage(SOCKET s) {
             }
             continue;
         }
+        else if (message.rfind("/sendfileto ", 0) == 0) {
+            send(s, message.c_str(), static_cast<int>(message.length()), 0);
+            // Command format: /sendfileto <username> <file_path>
+            size_t firstSpace = message.find(' ', 12); // Find space after "/sendfileto "
+            if (firstSpace == string::npos) {
+                string errorMessage = "Invalid command format. Use: /sendfileto <username> <file_path>";
+                cout << errorMessage << endl;
+                continue;
+            }
+            string username = message.substr(12, firstSpace - 12); // Extract username
+            string filePath = message.substr(firstSpace + 1);      // Extract file path
+
+            if (!sendFile(s, filePath)) {
+                cerr << "File transfer failed!" << endl;
+            }
+        }
         else {
             string msg = user + message;
             int bytesSent = send(s, msg.c_str(), static_cast<int>(msg.length()), 0);

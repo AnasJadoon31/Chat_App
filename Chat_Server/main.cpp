@@ -194,6 +194,68 @@ void handleFileTransfer(SOCKET senderSocket) {
     }
 }
 
+void sendFileToUser(const string& username, const string& filePath) {
+    auto it = userMap.find(username);
+    if (it == userMap.end()) {
+        cerr << "User not found: " << username << endl;
+        return;
+    }
+
+    SOCKET targetSocket = it->second;
+
+    // Open the file
+    ifstream file(filePath, ios::binary);
+    if (!file.is_open()) {
+        cerr << "Error: Unable to open file: " << filePath << endl;
+        return;
+    }
+
+    // Get file name from path
+    string fileName = filePath.substr(filePath.find_last_of("/\\") + 1);
+
+    // Get file size
+    file.seekg(0, ios::end);
+    size_t fileSize = file.tellg();
+    file.seekg(0, ios::beg);
+
+    // Metadata: fileName:fileSize
+    string metadata = fileName + ":" + to_string(fileSize);
+
+    // Step 1: Send metadata
+    int metaBytesSent = send(targetSocket, metadata.c_str(), static_cast<int>(metadata.length()), 0);
+    if (metaBytesSent <= 0) {
+        cerr << "Failed to send metadata to user: " << username << endl;
+        return;
+    }
+
+    // Step 2: Send file data in chunks
+    char buffer[4096];
+    cout << "Sending file: " << fileName << " (" << fileSize << " bytes) to " << username << endl;
+
+    size_t totalBytesSent = 0;
+    while (!file.eof()) {
+        file.read(buffer, sizeof(buffer));
+        int bytesRead = static_cast<int>(file.gcount());
+        int dataBytesSent = send(targetSocket, buffer, bytesRead, 0);
+
+        if (dataBytesSent <= 0) {
+            cerr << "Failed to send file data to user: " << username << endl;
+            break;
+        }
+        totalBytesSent += dataBytesSent;
+    }
+
+    file.close();
+
+    if (totalBytesSent == fileSize) {
+        cout << "File transfer complete to user: " << username << endl;
+    }
+    else {
+        cerr << "File transfer incomplete to user: " << username << endl;
+    }
+}
+
+
 // Interact with client
 void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
     char buffer[4096];
@@ -455,6 +517,20 @@ void interactWithClient(SOCKET clientSocket, vector<SOCKET>& clients) {
         }
         if (message.find("/sendfile") == 0) {
             handleFileTransfer(clientSocket);
+        }
+        if (message.rfind("/sendfileto ", 0) == 0) {
+            // Command format: /sendfileto <username> <file_path>
+            size_t firstSpace = message.find(' ', 12); // Find space after "/sendfileto "
+            if (firstSpace == string::npos) {
+                string errorMessage = "Invalid command format. Use: /sendfileto <username> <file_path>";
+                send(clientSocket, errorMessage.c_str(), static_cast<int>(errorMessage.length()), 0);
+                continue;
+            }
+
+            string username = message.substr(12, firstSpace - 12); // Extract username
+            string filePath = message.substr(firstSpace + 1);      // Extract file path
+
+            sendFileToUser(username, filePath);
         }
         else {
             // Forward the message to other clients
